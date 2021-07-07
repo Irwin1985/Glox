@@ -3,7 +3,7 @@ package parser
 import (
 	"Glox/ast"
 	"Glox/token"
-	"os"
+	"fmt"
 	"strconv"
 )
 
@@ -26,12 +26,80 @@ func (p *Parser) Errors() []string {
 	return p.errors
 }
 
-func (p *Parser) Parse() ast.Expression {
-	return p.expression()
+func (p *Parser) Parse() []ast.Statement {
+	statements := []ast.Statement{}
+	for !p.isAtEnd() {
+		statements = append(statements, p.declaration())
+	}
+	return statements
+}
+
+func (p *Parser) statement() ast.Statement {
+	if p.match(token.PRINT) {
+		return p.printStatement()
+	}
+	if p.match(token.LEFT_BRACE) {
+		return &ast.BlockStmt{Statements: p.Block()}
+	}
+	return p.expressionStatement()
+}
+
+func (p *Parser) Block() []ast.Statement {
+	statements := []ast.Statement{}
+	for !p.isAtEnd() && !p.check(token.RIGHT_BRACE) {
+		statements = append(statements, p.declaration())
+	}
+	p.consume(token.RIGHT_BRACE, "Expect '}' after block.")
+	return statements
+}
+
+func (p *Parser) printStatement() ast.Statement {
+	value := p.expression()
+	p.consume(token.SEMICOLON, "Expect ';' after value.")
+	return &ast.PrintStmt{Expression: value}
+}
+
+func (p *Parser) varDeclaration() ast.Statement {
+	name := p.consume(token.IDENTIFIER, "Expect variable name.")
+	var initializer ast.Expression
+	if p.match(token.EQUAL) {
+		initializer = p.expression()
+	}
+	p.consume(token.SEMICOLON, "Expect ';' after variable declaration.")
+
+	return &ast.VarStmt{Initializer: initializer, Name: name}
+}
+
+func (p *Parser) expressionStatement() ast.Statement {
+	expr := p.expression()
+	p.consume(token.SEMICOLON, "Expect ';' after expression.")
+	return &ast.ExpressionStmt{Expression: expr}
 }
 
 func (p *Parser) expression() ast.Expression {
-	return p.equality()
+	return p.assignment()
+}
+
+func (p *Parser) assignment() ast.Expression {
+	expr := p.equality()
+	if p.match(token.EQUAL) {
+		equals := p.previous()
+		value := p.assignment()
+
+		if e, ok := expr.(*ast.Variable); ok {
+			name := e.Name
+			return &ast.Assign{Name: name, Value: value}
+		}
+		p.errors = append(p.errors, fmt.Sprintf("%v invalid assignment target.", equals))
+	}
+	return expr
+}
+
+func (p *Parser) declaration() ast.Statement {
+	if p.match(token.VAR) {
+		return p.varDeclaration()
+	}
+	return p.statement()
 }
 
 func (p *Parser) equality() ast.Expression {
@@ -99,12 +167,19 @@ func (p *Parser) primary() ast.Expression {
 		return &ast.Literal{Value: nil}
 	}
 	if p.match(token.NUMBER, token.STRING) {
-		str := p.previous().Lexeme
-		val, err := strconv.ParseFloat(str, 64)
-		if err != nil {
-			p.errors = append(p.errors, "could not parse token to float")
+		tok := p.previous()
+		if tok.Type == token.NUMBER {
+			str := tok.Lexeme
+			val, err := strconv.ParseFloat(str, 64)
+			if err != nil {
+				p.errors = append(p.errors, "could not parse token to float")
+			}
+			return &ast.Literal{Value: val}
 		}
-		return &ast.Literal{Value: val}
+		return &ast.Literal{Value: tok.Lexeme}
+	}
+	if p.match(token.IDENTIFIER) {
+		return &ast.Variable{Name: p.previous()}
 	}
 	if p.match(token.LEFT_PAREN) {
 		expr := p.expression()
@@ -120,7 +195,6 @@ func (p *Parser) consume(t token.TokenType, msg string) token.Token {
 		return p.advance()
 	}
 	p.errors = append(p.errors, msg)
-	os.Exit(1)
 
 	return token.Token{}
 }

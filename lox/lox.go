@@ -14,7 +14,7 @@ import (
 // hadError will ensure don't try to execute code that has a known error.
 var HadError = true
 
-func RunFile(path string) {
+func RunFile(path string, i *interpreter.Interpreter) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		fmt.Printf("file does not exist: %s", path)
 		os.Exit(65)
@@ -23,13 +23,13 @@ func RunFile(path string) {
 	if err != nil {
 		panic(err)
 	}
-	run(string(bytes))
+	run(string(bytes), i)
 	if HadError {
 		os.Exit(65)
 	}
 }
 
-func RunPrompt() {
+func RunPrompt(i *interpreter.Interpreter) {
 	mode := "console"
 	//mode := "debug"
 	if mode != "debug" {
@@ -50,18 +50,19 @@ func RunPrompt() {
 			if line == "quit" {
 				break
 			}
-			run(line)
+			run(line, i)
 		}
 	} else {
 		line := `
 		// Your first Lox program!
-		3 + 4
+		var name = "Irwin";
+		print name;
 		`
-		run(line)
+		run(line, i)
 	}
 }
 
-func run(source string) bool {
+func run(source string, i *interpreter.Interpreter) bool {
 	s := scanner.NewScanner(source)
 	tokens := s.ScanTokens()
 	if len(s.Errors()) > 0 {
@@ -70,14 +71,13 @@ func run(source string) bool {
 	}
 
 	p := parser.NewParser(tokens)
-	expression := p.Parse()
+	statements := p.Parse()
 	if len(p.Errors()) > 0 {
 		printErrors(p.Errors())
 		return false
 	}
 
-	i := interpreter.NewInterpreter()
-	i.Interpret(expression)
+	i.Interpret(statements)
 
 	return true
 }
