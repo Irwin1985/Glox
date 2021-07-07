@@ -20,6 +20,7 @@ func NewScanner(source string) *Scanner {
 	s := &Scanner{
 		source:  []rune(source),
 		tokens:  []token.Token{},
+		errors:  []string{},
 		start:   0,
 		current: 0,
 		line:    1,
@@ -57,6 +58,7 @@ func (s *Scanner) ScanTokens() []token.Token {
 		s.start = s.current
 		s.scanToken()
 	}
+	s.tokens = append(s.tokens, token.Token{Type: token.EOF, Lexeme: ""})
 	return s.tokens
 }
 
