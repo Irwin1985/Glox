@@ -1,6 +1,7 @@
 package lox
 
 import (
+	"Glox/interpreter"
 	"Glox/parser"
 	"Glox/scanner"
 	"bufio"
@@ -54,7 +55,7 @@ func RunPrompt() {
 	} else {
 		line := `
 		// Your first Lox program!
-		"Hello, world!"
+		3 + 4
 		`
 		run(line)
 	}
@@ -75,7 +76,8 @@ func run(source string) bool {
 		return false
 	}
 
-	fmt.Println(expression.String())
+	i := interpreter.NewInterpreter()
+	i.Interpret(expression)
 
 	return true
 }

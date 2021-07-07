@@ -4,6 +4,7 @@ import (
 	"Glox/ast"
 	"Glox/token"
 	"os"
+	"strconv"
 )
 
 type Parser struct {
@@ -89,16 +90,21 @@ func (p *Parser) unary() ast.Expression {
 
 func (p *Parser) primary() ast.Expression {
 	if p.match(token.FALSE) {
-		return &ast.Literal{Object: false}
+		return &ast.Literal{Value: false}
 	}
 	if p.match(token.TRUE) {
-		return &ast.Literal{Object: true}
+		return &ast.Literal{Value: true}
 	}
 	if p.match(token.NIL) {
-		return &ast.Literal{Object: nil}
+		return &ast.Literal{Value: nil}
 	}
 	if p.match(token.NUMBER, token.STRING) {
-		return &ast.Literal{Object: p.previous().Lexeme}
+		str := p.previous().Lexeme
+		val, err := strconv.ParseFloat(str, 64)
+		if err != nil {
+			p.errors = append(p.errors, "could not parse token to float")
+		}
+		return &ast.Literal{Value: val}
 	}
 	if p.match(token.LEFT_PAREN) {
 		expr := p.expression()
