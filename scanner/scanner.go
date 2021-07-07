@@ -1,16 +1,19 @@
 package scanner
 
 import (
-	"Glox/errors"
 	"Glox/token"
+	"fmt"
+	"unicode"
 )
 
 type Scanner struct {
 	source  []rune
 	tokens  []token.Token
+	errors  []string
 	start   int
 	current int
 	line    int
+	col     int
 }
 
 func NewScanner(source string) *Scanner {
@@ -20,8 +23,13 @@ func NewScanner(source string) *Scanner {
 		start:   0,
 		current: 0,
 		line:    1,
+		col:     0,
 	}
 	return s
+}
+
+func (s *Scanner) Errors() []string {
+	return s.errors
 }
 
 var keywords = map[string]token.TokenType{
@@ -56,62 +64,63 @@ func (s *Scanner) scanToken() {
 	c := s.advance()
 	switch c {
 	case rune('('):
-		s.addToken(token.LEFT_PAREN)
+		s.addToken(token.LEFT_PAREN, "(")
 	case rune(')'):
-		s.addToken(token.RIGHT_PAREN)
+		s.addToken(token.RIGHT_PAREN, ")")
 	case rune('{'):
-		s.addToken(token.LEFT_BRACE)
+		s.addToken(token.LEFT_BRACE, "{")
 	case rune('}'):
-		s.addToken(token.RIGHT_BRACE)
+		s.addToken(token.RIGHT_BRACE, "}")
 	case rune(','):
-		s.addToken(token.COMMA)
+		s.addToken(token.COMMA, ",")
 	case rune('.'):
-		s.addToken(token.DOT)
+		s.addToken(token.DOT, ".")
 	case rune('-'):
-		s.addToken(token.MINUS)
+		s.addToken(token.MINUS, ".")
 	case rune('+'):
-		s.addToken(token.PLUS)
+		s.addToken(token.PLUS, "+")
 	case rune(';'):
-		s.addToken(token.SEMICOLON)
+		s.addToken(token.SEMICOLON, ";")
 	case rune('*'):
-		s.addToken(token.STAR)
+		s.addToken(token.STAR, "*")
 	case rune('!'):
 		if s.match('=') {
-			s.addToken(token.BANG_EQUAL)
+			s.addToken(token.BANG_EQUAL, "!=")
 		} else {
-			s.addToken(token.BANG)
+			s.addToken(token.BANG, "!")
 		}
 	case rune('='):
 		if s.match('=') {
-			s.addToken(token.EQUAL_EQUAL)
+			s.addToken(token.EQUAL_EQUAL, "==")
 		} else {
-			s.addToken(token.EQUAL)
+			s.addToken(token.EQUAL, "=")
 		}
 	case rune('<'):
 		if s.match('=') {
-			s.addToken(token.LESS_EQUAL)
+			s.addToken(token.LESS_EQUAL, "<=")
 		} else {
-			s.addToken(token.LESS)
+			s.addToken(token.LESS, "<")
 		}
 	case rune('>'):
 		if s.match('=') {
-			s.addToken(token.GREATER_EQUAL)
+			s.addToken(token.GREATER_EQUAL, ">=")
 		} else {
-			s.addToken(token.GREATER)
+			s.addToken(token.GREATER, ">")
 		}
 	case rune('/'):
 		if s.match('/') {
 			// A comment goes until the end of the line.
-			for s.peek() != rune('\n') && !s.isAtEnd() {
+			for !s.isAtEnd() && s.peek() != rune('\n') {
 				s.advance()
 			}
 		} else {
-			s.addToken(token.SLASH)
+			s.addToken(token.SLASH, "/")
 		}
 	case rune(' '), rune('\r'), rune('\t'):
-		// Ignore whitespace
+		s.col += 1
 	case rune('\n'):
 		s.line += 1
+		s.col = 0
 	case rune('"'):
 		s.string()
 	default:
@@ -120,7 +129,7 @@ func (s *Scanner) scanToken() {
 		} else if isAlpha(c) {
 			s.identifier()
 		} else {
-			errors.Error(s.line, "Unexpected character.")
+			s.errors = append(s.errors, fmt.Sprintf("Ln %d, Col %d Unexpected character: '%c'", s.line, s.col, c))
 		}
 	}
 }
@@ -153,14 +162,15 @@ func (s *Scanner) number() {
 }
 
 func (s *Scanner) string() {
-	for s.peek() != '"' && s.isAtEnd() {
+	for !s.isAtEnd() && s.peek() != '"' {
 		if s.peek() == '\n' {
 			s.line += 1
+			s.col = 0
 		}
 		s.advance()
 	}
 	if s.isAtEnd() {
-		errors.Error(s.line, "Unterminated string.")
+		s.errors = append(s.errors, fmt.Sprintf("Ln %d, Col %d Unterminated string.", s.line, s.col))
 		return
 	}
 	// The closing ".
@@ -197,8 +207,7 @@ func (s *Scanner) peekNext() rune {
 }
 
 func isAlpha(c rune) bool {
-	return rune('a') <= c && c <= rune('z') ||
-		rune('A') <= c && c <= rune('>') || c == rune('_')
+	return unicode.IsLetter(c) || c == rune('_')
 }
 
 func isAlphaNumeric(c rune) bool {
@@ -206,21 +215,24 @@ func isAlphaNumeric(c rune) bool {
 }
 
 func isDigit(c rune) bool {
-	return rune('0') <= c && c <= rune('9')
+	return unicode.IsDigit(c)
 }
 
 func (s *Scanner) advance() rune {
 	c := s.source[s.current]
 	s.current += 1
+	s.col += 1
 	return c
 }
 
-func (s *Scanner) addToken(t token.TokenType, lexemes ...string) {
-	lexeme := ""
-	if len(lexemes) > 0 {
-		lexeme = lexemes[0]
+func (s *Scanner) addToken(t token.TokenType, lexeme string) {
+	tok := token.Token{
+		Type:   t,
+		Lexeme: lexeme,
+		Line:   s.line,
+		Col:    s.col,
 	}
-	s.tokens = append(s.tokens, token.Token{Type: t, Lexeme: lexeme})
+	s.tokens = append(s.tokens, tok)
 }
 
 func (s *Scanner) isAtEnd() bool {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"time"
 )
 
 // hadError will ensure don't try to execute code that has a known error.
@@ -27,23 +28,26 @@ func RunFile(path string) {
 }
 
 func RunPrompt() {
-	mode := "debug"
+	mode := "console"
 	if mode != "debug" {
 		scanner := bufio.NewScanner(os.Stdin)
+		fmt.Println("Welcome to Glox, an GoLang implementation of Lox.")
+		fmt.Printf("Data and Time: %s\n", time.Now().Format(time.Stamp))
+		fmt.Println("Type 'quit' to exit")
 		for {
+			fmt.Print("> ")
 			scanned := scanner.Scan()
 			if !scanned {
 				return
 			}
-			fmt.Print("> ")
 			line := scanner.Text()
 			if len(line) <= 0 {
 				continue
 			}
+			if line == "quit" {
+				break
+			}
 			run(line)
-			// we reset hadError if the user makes a mistake and
-			// it shouldn't kill the entire session.
-			HadError = false
 		}
 	} else {
 		line := `
@@ -122,7 +126,6 @@ func RunPrompt() {
 		for (var a = 1; a < 10; a = a + 1) {
 			print a;
 		}
-
 		makeBreakfast(bacon, eggs, toast);
 
 		makeBreakfast();
@@ -130,11 +133,9 @@ func RunPrompt() {
 		fun printSum(a, b) {
 			print a + b;
 		}
-
 		fun returnSum(a, b) {
 			return a + b;
 		}		
-
 		fun addPair(a, b) {
 			return a + b;
 		}
@@ -142,7 +143,6 @@ func RunPrompt() {
 		fun identity(a) {
 			return a;
 		}
-		  
 		print identity(addPair)(1, 2); // Prints "3".		
 
 		fun outerFunction() {
@@ -231,12 +231,31 @@ func RunPrompt() {
 	}
 }
 
-func run(source string) {
+func run(source string) bool {
 	s := scanner.NewScanner(source)
 	tokens := s.ScanTokens()
-
+	if len(s.Errors()) > 0 {
+		printErrors(s.Errors())
+		return false
+	}
 	// For now, just print the tokens.
 	for _, tok := range tokens {
 		fmt.Println(tok.ToString())
 	}
+
+	return true
+}
+
+func printErrors(errors []string) {
+	for _, msg := range errors {
+		fmt.Println(msg)
+	}
+}
+
+func error(line int, message string) {
+	report(line, "", message)
+}
+
+func report(line int, where string, message string) {
+	fmt.Printf("[line %d] Error %s: %s", line, where, message)
 }

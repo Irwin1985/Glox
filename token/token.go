@@ -109,8 +109,9 @@ type Token struct {
 	Type   TokenType
 	Lexeme string
 	Line   int
+	Col    int
 }
 
 func (t *Token) ToString() string {
-	return fmt.Sprintf("<%d, '%s'>", t.Type, t.Lexeme)
+	return fmt.Sprintf("Ln %d, Col %d <%d, '%s'>", t.Line, t.Col, t.Type, t.Lexeme)
 }
